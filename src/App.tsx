@@ -174,6 +174,7 @@ export const App: React.FC = () => {
       <Header
         currentStep={publicStep}
         onReset={handleResetPublic}
+        onNavigateToAdmin={() => navigateTo('/admin')}
       />
 
       <main className="flex-1 w-full">

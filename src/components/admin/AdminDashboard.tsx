@@ -8,7 +8,8 @@ import {
   fetchAdminReport,
   generateAdminReport,
   fetchAdminStats,
-  clearStoredAdminToken,
+  logoutAdmin,
+  changeAdminPassword,
 } from '../../services/api';
 import { StrategicReport } from '../../types/survey';
 import { ReportView } from '../ReportView';
@@ -25,6 +26,9 @@ import {
   Clock,
   AlertTriangle,
   Database,
+  KeyRound,
+  Check,
+  X,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -51,6 +55,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [activeReport, setActiveReport] = useState<StrategicReport | null>(null);
   const [isGeneratingId, setIsGeneratingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Modal de alteração de senha
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -111,9 +124,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleLogoutClick = () => {
-    clearStoredAdminToken();
+  const handleLogoutClick = async () => {
+    await logoutAdmin();
     onLogout();
+  };
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (newPassword.length < 8) {
+      setPasswordError('A nova senha deve possuir no mínimo 8 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('A confirmação da senha não confere.');
+      return;
+    }
+
+    setIsSubmittingPassword(true);
+    try {
+      const res = await changeAdminPassword(currentPassword, newPassword);
+      setPasswordSuccess(res.message);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setIsSubmittingPassword(false);
+      setTimeout(() => {
+        setIsChangePasswordOpen(false);
+        setPasswordSuccess('');
+      }, 2000);
+    } catch (err: any) {
+      setIsSubmittingPassword(false);
+      setPasswordError(err.message || 'Erro ao atualizar senha.');
+    }
   };
 
   // Se estiver visualizando um relatório aberto
@@ -191,14 +237,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={onNavigateToPublic}
-              className="px-3 py-1.5 rounded-lg text-xs font-mono text-[#8A8A91] hover:text-[#F5F5F5] hover:bg-[#161619] border border-transparent hover:border-[#252529] transition-all"
+              className="px-3 py-1.5 rounded-lg text-xs font-mono text-[#8A8A91] hover:text-[#F5F5F5] hover:bg-[#161619] border border-transparent hover:border-[#252529] transition-all cursor-pointer"
             >
-              Ver Formulário Público
+              Ver Formulário
+            </button>
+
+            <button
+              onClick={() => {
+                setPasswordError('');
+                setPasswordSuccess('');
+                setIsChangePasswordOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-mono text-[#8A8A91] hover:text-[#F5F5F5] hover:bg-[#161619] border border-[#252529] transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Alterar senha administrativa"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-[#00FF88]" />
+              <span className="hidden sm:inline">Alterar Senha</span>
             </button>
 
             <button
               onClick={handleLogoutClick}
-              className="px-3 py-1.5 rounded-lg text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-all flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Sair</span>
@@ -418,6 +477,108 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           onClose={() => setIsAnswersDrawerOpen(false)}
           answers={activeSubmissionDetail.answers}
         />
+      )}
+
+      {/* Modal de Alteração de Senha Administrativa */}
+      {isChangePasswordOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-[#111113] border border-[#252529] shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-[#161619] text-[#00FF88] border border-[#252529]">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <h3 className="text-sm font-semibold text-[#F5F5F5] font-mono">
+                  Alterar Senha do Administrador
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsChangePasswordOpen(false)}
+                className="p-1 rounded-lg text-[#8A8A91] hover:text-[#F5F5F5] hover:bg-[#161619] transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#8A8A91] mb-5 leading-relaxed">
+              Substitua a credencial inicial temporária por uma senha forte e exclusiva antes de disponibilizar o painel.
+            </p>
+
+            {passwordError && (
+              <div className="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                {passwordError}
+              </div>
+            )}
+
+            {passwordSuccess && (
+              <div className="p-3 mb-4 rounded-xl bg-[#00FF88]/10 border border-[#00FF88]/20 text-xs text-[#00FF88] flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>{passwordSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-mono text-[#8A8A91] uppercase tracking-wider mb-1.5">
+                  Senha Atual
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#161619] border border-[#252529] focus:border-[#00FF88] focus:outline-none text-xs text-[#F5F5F5] font-mono placeholder:text-[#5A5A62]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-[#8A8A91] uppercase tracking-wider mb-1.5">
+                  Nova Senha (mínimo 8 caracteres)
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#161619] border border-[#252529] focus:border-[#00FF88] focus:outline-none text-xs text-[#F5F5F5] font-mono placeholder:text-[#5A5A62]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-[#8A8A91] uppercase tracking-wider mb-1.5">
+                  Confirmar Nova Senha
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#161619] border border-[#252529] focus:border-[#00FF88] focus:outline-none text-xs text-[#F5F5F5] font-mono placeholder:text-[#5A5A62]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsChangePasswordOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-mono text-[#8A8A91] hover:text-[#F5F5F5] hover:bg-[#161619] transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPassword}
+                  className="px-4 py-2 rounded-xl bg-[#00FF88] hover:bg-[#00E57A] text-[#080808] text-xs font-mono font-semibold transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingPassword ? 'Atualizando...' : 'Salvar Nova Senha'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

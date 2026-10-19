@@ -14,6 +14,7 @@ import {
   authenticateAdminCredentials,
   generateAdminToken,
   requireAdminAuth,
+  changeAdminPassword,
 } from './auth';
 import { processAndSaveReport } from './reportService';
 import { SurveyAnswers } from '../src/types/survey';
@@ -203,6 +204,17 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
   }
 
   const token = generateAdminToken(username);
+
+  // Define cookie HttpOnly para sessão protegida contra scripts maliciosos (XSS)
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie('cety_admin_token', token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: 12 * 60 * 60 * 1000,
+    path: '/',
+  });
+
   res.json({
     success: true,
     token,
@@ -210,6 +222,40 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
     role: 'admin',
     expiresIn: '12h',
   });
+});
+
+// Encerramento de sessão administrativa (Logout)
+app.post('/api/admin/logout', (req, res) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('cety_admin_token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
+  res.json({ success: true, message: 'Sessão administrativa encerrada com sucesso.' });
+});
+
+// Alteração segura de senha administrativa com validação e persistência no SQLite
+app.post('/api/admin/change-password', requireAdminAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const username = (req as any).adminUser.username;
+
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({
+      error: 'Campos incompletos',
+      message: 'Senha atual e nova senha são obrigatórias.',
+    });
+    return;
+  }
+
+  const result = changeAdminPassword(username, currentPassword, newPassword);
+  if (!result.success) {
+    res.status(400).json({ error: 'Erro ao alterar senha', message: result.message });
+    return;
+  }
+
+  res.json({ success: true, message: result.message });
 });
 
 app.get('/api/admin/me', requireAdminAuth, (req, res) => {

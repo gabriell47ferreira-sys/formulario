@@ -97,17 +97,22 @@ server.listen(TEST_PORT, async () => {
     }
     console.log('  ✓ Login com senha incorreta foi bloqueado (401).');
 
-    // Login correto
+    // Login correto com credencial inicial solicitada (admin47)
+    const expectedPassword = process.env.ADMIN_PASSWORD || 'admin47';
     const goodLoginRes = await fetch(`${baseUrl}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'admin', password: 'Admin@Juridico2026!' }),
+      body: JSON.stringify({ username: 'admin', password: expectedPassword }),
     });
     if (goodLoginRes.status !== 200) {
       throw new Error(`Falha no login com credenciais corretas: ${goodLoginRes.status}`);
     }
     const loginData = await goodLoginRes.json();
-    console.log('  ✓ Login administrativo realizado com sucesso. Token JWT gerado.');
+    const setCookieHeader = goodLoginRes.headers.get('set-cookie') || '';
+    if (!setCookieHeader.includes('cety_admin_token') || !setCookieHeader.toLowerCase().includes('httponly')) {
+      throw new Error('Falha de segurança: cookie HttpOnly cety_admin_token não foi emitido no login!');
+    }
+    console.log('  ✓ Login administrativo realizado com sucesso. Token JWT e Cookie HttpOnly gerados.');
     const adminToken = loginData.token;
 
     // -------------------------------------------------------------------------
@@ -159,8 +164,25 @@ server.listen(TEST_PORT, async () => {
     }
     console.log('  ✓ Relatório permanece salvo e íntegro no servidor em disco.');
 
+    // -------------------------------------------------------------------------
+    // TESTE 9: Encerramento de sessão (Logout) e invalidação de cookie
+    // -------------------------------------------------------------------------
+    console.log('\n[TESTE 9] Encerramento de sessão administrativa (Logout)...');
+    const logoutRes = await fetch(`${baseUrl}/api/admin/logout`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    if (logoutRes.status !== 200) {
+      throw new Error('Falha ao executar logout');
+    }
+    const logoutSetCookie = logoutRes.headers.get('set-cookie') || '';
+    if (!logoutSetCookie.includes('cety_admin_token=;')) {
+      throw new Error('Falha: logout não limpou o cookie cety_admin_token');
+    }
+    console.log('  ✓ Sessão encerrada e cookie HttpOnly invalidado com sucesso.');
+
     console.log('\n=============================================================');
-    console.log(' TODOS OS 10 CRITÉRIOS DE SEGURANÇA E SEPARAÇÃO FORAM VALIDADOS!');
+    console.log(' TODOS OS CRITÉRIOS DE SEGURANÇA E SESSÃO FORAM VALIDADOS!');
     console.log('=============================================================');
 
     server.close();

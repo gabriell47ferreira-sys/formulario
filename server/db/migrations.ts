@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { getDatabase } from './connection';
 import fs from 'fs';
 import path from 'path';
+import bcrypt from 'bcryptjs';
 import { TEST_PROFILES } from '../../src/data/mockData';
 import { generateStrategicReport } from '../../src/services/reportEngine';
 
@@ -65,6 +66,23 @@ const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    version: 2,
+    name: '002_create_admin_users_table',
+    up: (db: DatabaseSync) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS admin_users (
+          id TEXT PRIMARY KEY,
+          username TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users(username);
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db?: DatabaseSync): void {
@@ -105,6 +123,29 @@ export function runMigrations(db?: DatabaseSync): void {
 
   // Se a tabela estiver vazia, importa dados legados do database.json ou semeia perfis de teste
   seedInitialDataIfEmpty(database);
+
+  // Inicializa a tabela admin_users se vazia
+  seedAdminUserIfEmpty(database);
+}
+
+function seedAdminUserIfEmpty(db: DatabaseSync): void {
+  const countRow = db.prepare('SELECT COUNT(*) as count FROM admin_users').get() as { count: number };
+  if (countRow.count > 0) {
+    return;
+  }
+
+  const initialUsername = process.env.ADMIN_USERNAME || 'admin';
+  const initialRawPassword = process.env.ADMIN_PASSWORD || 'admin47';
+  const passwordHash = bcrypt.hashSync(initialRawPassword, 10);
+  const now = new Date().toISOString();
+
+  const insertStmt = db.prepare(`
+    INSERT INTO admin_users (id, username, password_hash, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  insertStmt.run('ADMIN-ROOT-001', initialUsername, passwordHash, now, now);
+  console.log(`[4CETY DB] Usuário administrativo inicial "${initialUsername}" provisionado com hash seguro no SQLite.`);
 }
 
 function seedInitialDataIfEmpty(db: DatabaseSync): void {

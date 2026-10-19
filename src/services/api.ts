@@ -115,6 +115,7 @@ export async function loginAdmin(username: string, password: string): Promise<Ad
   const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ username, password }),
   });
 
@@ -128,13 +129,41 @@ export async function loginAdmin(username: string, password: string): Promise<Ad
   return data;
 }
 
-export async function verifyAdminSession(): Promise<boolean> {
-  const token = getStoredAdminToken();
-  if (!token) return false;
+export async function logoutAdmin(): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/admin/logout`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      credentials: 'include',
+    });
+  } catch {
+    // ignore
+  } finally {
+    clearStoredAdminToken();
+  }
+}
 
+export async function changeAdminPassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/api/admin/change-password`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || 'Falha ao alterar senha.');
+  }
+
+  return data;
+}
+
+export async function verifyAdminSession(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/admin/me`, {
       headers: getAuthHeaders(),
+      credentials: 'include',
     });
     return response.ok;
   } catch {

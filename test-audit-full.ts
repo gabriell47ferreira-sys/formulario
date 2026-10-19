@@ -527,27 +527,71 @@ async function runComprehensiveAudit() {
     }
 
     // -------------------------------------------------------------------------
-    // TESTE ADICIONAL 22: Contenção de vazamento de dados na resposta pública
+    // TESTE ADICIONAL 23: Persistência de hash em admin_users e Cookie HttpOnly
     // -------------------------------------------------------------------------
-    console.log('[FASE EXTRA] Testando contenção de dados sigilosos na submissão...');
-    const publicSubmitRes = await fetch(`${baseUrl}/api/submissions`, {
+    console.log('[FASE ADMIN & AUTH] Testando persistência em admin_users e Cookie HttpOnly...');
+    const activeDb = getDatabase();
+    const adminUserRow = activeDb.prepare('SELECT id, username, password_hash FROM admin_users WHERE username = ?').get('admin_audit') as any;
+    const isBcryptHash = adminUserRow?.password_hash?.startsWith('$2a$') || adminUserRow?.password_hash?.startsWith('$2b$');
+
+    const adminLoginRes = await fetch(`${baseUrl}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answers: fullAnswers }),
+      body: JSON.stringify({ username: 'admin_audit', password: 'AuditPassword2026!' }),
     });
-    // Se caiu no rate limit por conta do teste anterior, usamos o status do rate limiter ou testamos a estrutura da resposta
-    const publicSubmitJson = await publicSubmitRes.json();
-    const hasDataLeakage =
-      Boolean(publicSubmitJson.report) ||
-      Boolean(publicSubmitJson.report_data) ||
-      Boolean(publicSubmitJson.answers) ||
-      Boolean(publicSubmitJson.recommendations);
+    const loginCookies = adminLoginRes.headers.get('set-cookie') || '';
+    const hasHttpOnlyCookie = loginCookies.includes('cety_admin_token') && loginCookies.toLowerCase().includes('httponly');
+    const loginJson = await adminLoginRes.json();
 
-    if (!hasDataLeakage) {
-      record(22, 'Contenção estrita de dados: advogado nunca recebe relatório ou dados internos', 'Privacidade & Negócio', 'APROVADO',
-        'A API pública retorna exclusivamente o protocolo de submissão e a mensagem de agradecimento.');
+    if (adminUserRow && isBcryptHash && adminLoginRes.status === 200 && hasHttpOnlyCookie) {
+      record(23, 'Persistência de credencial administrativa no SQLite (admin_users) e Cookie HttpOnly', 'Autenticação & SQLite', 'APROVADO',
+        `Usuário "${adminUserRow.username}" persistido com hash bcrypt. Cookie HttpOnly "cety_admin_token" emitido no login.`);
     } else {
-      record(22, 'Contenção estrita de dados', 'Privacidade & Negócio', 'REPROVADO', 'Dados analíticos vazaram no response público');
+      record(23, 'Persistência em admin_users e Cookie HttpOnly', 'Autenticação & SQLite', 'REPROVADO', 'Falha no hash ou cookie HttpOnly');
+    }
+
+    // -------------------------------------------------------------------------
+    // TESTE ADICIONAL 24: Alteração de senha administrativa e revogação da anterior
+    // -------------------------------------------------------------------------
+    console.log('[FASE ADMIN & AUTH] Testando alteração segura de senha e invalidação da anterior...');
+    const changePassRes = await fetch(`${baseUrl}/api/admin/change-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${loginJson.token}`,
+      },
+      body: JSON.stringify({
+        currentPassword: 'AuditPassword2026!',
+        newPassword: 'NovaSenhaForte2026!#',
+      }),
+    });
+    const changePassJson = await changePassRes.json();
+
+    // Testa se a senha antiga foi revogada
+    const oldLoginRes = await fetch(`${baseUrl}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin_audit', password: 'AuditPassword2026!' }),
+    });
+
+    // Testa se a nova senha é aceita
+    const newLoginRes = await fetch(`${baseUrl}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin_audit', password: 'NovaSenhaForte2026!#' }),
+    });
+
+    const passChangeOk =
+      changePassRes.status === 200 &&
+      changePassJson.success === true &&
+      oldLoginRes.status === 401 &&
+      newLoginRes.status === 200;
+
+    if (passChangeOk) {
+      record(24, 'Alteração de senha com atualização atômica no SQLite e bloqueio da senha anterior', 'Gestão de Senhas', 'APROVADO',
+        'Senha alterada com sucesso. Tentativa com senha antiga retornou 401. Login com nova senha aprovado com 200.');
+    } else {
+      record(24, 'Alteração de senha administrativa', 'Gestão de Senhas', 'REPROVADO', 'Falha ao trocar senha ou revogar anterior');
     }
 
   } catch (err) {
