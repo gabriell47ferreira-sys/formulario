@@ -1,0 +1,23 @@
+# Dependencies
+node_modules
+dist
+dist-ssr
+
+# Environment Variables
+.env
+.env.local
+*.local
+
+# SQLite Database & Storage (Keep local data private)
+data/
+!data/.gitkeep
+storage/
+!storage/.gitkeep
+backups/
+!backups/.gitkeep
+
+# Editor & OS files
+.vscode
+.idea
+.DS_Store
+Thumbs.db

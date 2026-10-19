@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #080808;
+  color: #F5F5F5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #080808;
+}
+::-webkit-scrollbar-thumb {
+  background: #252529;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #36363E;
+}
+
+/* Print Styles */
+@media print {
+  @page {
+    margin: 15mm 15mm 15mm 15mm;
+    size: A4 portrait;
+  }
+
+  body {
+    background-color: #FFFFFF !important;
+    color: #111111 !important;
+    font-size: 11pt !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Make report containers print-friendly with white background and dark text */
+  .report-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  .report-card {
+    background: #FFFFFF !important;
+    border: 1px solid #E5E7EB !important;
+    color: #111111 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 12pt !important;
+  }
+
+  .report-text-primary {
+    color: #111827 !important;
+  }
+
+  .report-text-secondary {
+    color: #4B5563 !important;
+  }
+
+  .report-badge-relatado {
+    background-color: #EFF6FF !important;
+    color: #1E40AF !important;
+    border: 1px solid #BFDBFE !important;
+  }
+
+  .report-badge-hipotese {
+    background-color: #FEF3C7 !important;
+    color: #92400E !important;
+    border: 1px solid #FDE68A !important;
+  }
+
+  .report-badge-recomendacao {
+    background-color: #ECFDF5 !important;
+    color: #065F46 !important;
+    border: 1px solid #A7F3D0 !important;
+  }
+}
