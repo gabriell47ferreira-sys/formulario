@@ -21,8 +21,9 @@ export interface AdminPayload {
 export function authenticateAdminCredentials(username: string, password: string): boolean {
   if (!username || !password) return false;
 
+  const cleanUsername = username.trim().toLowerCase();
   const db = getDatabase();
-  const row = db.prepare('SELECT password_hash FROM admin_users WHERE username = ?').get(username) as { password_hash: string } | undefined;
+  const row = db.prepare('SELECT password_hash FROM admin_users WHERE LOWER(username) = ?').get(cleanUsername) as { password_hash: string } | undefined;
 
   if (!row || !row.password_hash) {
     // Defesa contra timing attacks: realiza comparação simulada
@@ -30,7 +31,7 @@ export function authenticateAdminCredentials(username: string, password: string)
     return false;
   }
 
-  return bcrypt.compareSync(password, row.password_hash);
+  return bcrypt.compareSync(password, row.password_hash) || bcrypt.compareSync(password.trim(), row.password_hash);
 }
 
 /**

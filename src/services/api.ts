@@ -112,21 +112,41 @@ function getAuthHeaders(): HeadersInit {
 }
 
 export async function loginAdmin(username: string, password: string): Promise<AdminLoginResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ username, password }),
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username, password }),
+    });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || 'Credenciais inválidas.');
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        throw new Error(err.message || 'Credenciais inválidas. Verifique o usuário e a senha.');
+      } else if (response.status === 404) {
+        throw new Error('Servidor backend não encontrado (404). Certifique-se de que o backend local está em execução.');
+      } else if (response.status === 429) {
+        throw new Error(err.message || 'Muitas tentativas de login. Aguarde alguns instantes antes de tentar novamente.');
+      }
+      throw new Error(err.message || `Erro de autenticação no servidor (${response.status}).`);
+    }
+
+    const data: AdminLoginResponse = await response.json();
+    setStoredAdminToken(data.token);
+    return data;
+  } catch (error: any) {
+    if (
+      error.name === 'TypeError' ||
+      error.message?.includes('NetworkError') ||
+      error.message?.includes('Failed to fetch')
+    ) {
+      throw new Error(
+        'Não foi possível conectar ao servidor backend local. Verifique se o backend está iniciado no computador (npm run dev).'
+      );
+    }
+    throw error;
   }
-
-  const data: AdminLoginResponse = await response.json();
-  setStoredAdminToken(data.token);
-  return data;
 }
 
 export async function logoutAdmin(): Promise<void> {
