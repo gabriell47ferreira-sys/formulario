@@ -13,10 +13,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onBackToPubli
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const isRemoteHost = typeof window !== 'undefined' && 
-    !window.location.hostname.includes('localhost') && 
-    !window.location.hostname.includes('127.0.0.1');
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -52,16 +48,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onSuccess, onBackToPubli
         <p className="text-xs sm:text-sm text-[#8A8A91] mb-6 leading-relaxed">
           Autenticação exclusiva para consulta de respostas e geração de relatórios de diagnóstico.
         </p>
-
-        {isRemoteHost && (
-          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 mb-5 text-xs text-amber-300/90 leading-relaxed">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-            <div>
-              <p className="font-semibold text-amber-300 mb-0.5">Acesso Remoto Detectado</p>
-              O banco de dados SQLite fica no seu computador. Para acessar o painel do proprietário, abra no seu navegador local: <a href="http://localhost:5173/admin" className="underline font-mono text-white hover:text-[#00FF88]">http://localhost:5173/admin</a>.
-            </div>
-          </div>
-        )}
 
         {errorMessage && (
           <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center gap-2.5 mb-5 text-xs text-red-400">

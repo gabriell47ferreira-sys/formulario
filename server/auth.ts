@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
-import { getDatabase } from './db/connection';
+import { getDbClient } from './db/client';
 
 dotenv.config();
 
@@ -16,14 +16,18 @@ export interface AdminPayload {
 }
 
 /**
- * Validação de credenciais contra a tabela admin_users persistida no SQLite
+ * Validação de credenciais contra a tabela admin_users persistida no SQLite / Turso
  */
-export function authenticateAdminCredentials(username: string, password: string): boolean {
+export async function authenticateAdminCredentials(username: string, password: string): Promise<boolean> {
   if (!username || !password) return false;
 
   const cleanUsername = username.trim().toLowerCase();
-  const db = getDatabase();
-  const row = db.prepare('SELECT password_hash FROM admin_users WHERE LOWER(username) = ?').get(cleanUsername) as { password_hash: string } | undefined;
+  const db = getDbClient();
+  const res = await db.execute({
+    sql: 'SELECT password_hash FROM admin_users WHERE LOWER(username) = ?',
+    args: [cleanUsername],
+  });
+  const row = res.rows[0] as { password_hash: string } | undefined;
 
   if (!row || !row.password_hash) {
     // Defesa contra timing attacks: realiza comparação simulada
@@ -31,18 +35,20 @@ export function authenticateAdminCredentials(username: string, password: string)
     return false;
   }
 
-  return bcrypt.compareSync(password, row.password_hash) || bcrypt.compareSync(password.trim(), row.password_hash);
+  const hash = String(row.password_hash);
+  return bcrypt.compareSync(password, hash) || bcrypt.compareSync(password.trim(), hash);
 }
 
 /**
- * Alteração segura de senha administrativa com validação e persistência no SQLite
+ * Alteração segura de senha administrativa com validação e persistência no SQLite / Turso
  */
-export function changeAdminPassword(username: string, currentPassword: string, newPassword: string): { success: boolean; message: string } {
+export async function changeAdminPassword(username: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
   if (!username || !currentPassword || !newPassword) {
     return { success: false, message: 'Todos os campos de senha são obrigatórios.' };
   }
 
-  if (!authenticateAdminCredentials(username, currentPassword)) {
+  const isValid = await authenticateAdminCredentials(username, currentPassword);
+  if (!isValid) {
     return { success: false, message: 'Senha atual incorreta.' };
   }
 
@@ -50,11 +56,14 @@ export function changeAdminPassword(username: string, currentPassword: string, n
     return { success: false, message: 'A nova senha deve possuir no mínimo 8 caracteres.' };
   }
 
-  const db = getDatabase();
+  const db = getDbClient();
   const newHash = bcrypt.hashSync(newPassword, 10);
   const now = new Date().toISOString();
 
-  db.prepare('UPDATE admin_users SET password_hash = ?, updated_at = ? WHERE username = ?').run(newHash, now, username);
+  await db.execute({
+    sql: 'UPDATE admin_users SET password_hash = ?, updated_at = ? WHERE LOWER(username) = ?',
+    args: [newHash, now, username.trim().toLowerCase()],
+  });
   return { success: true, message: 'Senha administrativa atualizada com sucesso.' };
 }
 

@@ -22,11 +22,12 @@ import { SurveyAnswers } from '../src/types/survey';
 import { SurveyService } from './services/surveyService';
 import { DocumentService } from './services/documentService';
 import { BackupService } from './services/backupService';
+import { runTursoMigrations } from './db/tursoMigrations';
 
 dotenv.config();
 
-// Executa migrações no arranque
-runMigrations();
+// Executa migrações no arranque para banco relacional (SQLite / Turso)
+runTursoMigrations().catch((err) => console.warn('[4CETY DB] Aviso na inicialização:', err));
 
 export const app = express();
 
@@ -141,7 +142,7 @@ const upload = multer({
 // -------------------------------------------------------------
 // 1. ÁREA PÚBLICA — SUBMISSÃO DO ADVOGADO
 // -------------------------------------------------------------
-app.post('/api/submissions', submissionLimiter, (req, res) => {
+app.post('/api/submissions', submissionLimiter, async (req, res) => {
   try {
     const { answers } = req.body;
 
@@ -153,12 +154,12 @@ app.post('/api/submissions', submissionLimiter, (req, res) => {
       return;
     }
 
-    // 1. Registra submissão no SQLite com consultas parametrizadas
-    const submission = createSubmission(answers as SurveyAnswers);
+    // 1. Registra submissão no SQLite / Turso com consultas parametrizadas
+    const submission = await SurveyService.createResponse(answers as SurveyAnswers);
 
     // 2. Dispara geração automática do relatório em segundo plano no backend
     try {
-      processAndSaveReport(submission.id, answers as SurveyAnswers);
+      await processAndSaveReport(submission.id, answers as SurveyAnswers);
     } catch (genError) {
       console.warn(`Aviso: falha na geração inicial do relatório para ${submission.id}:`, genError);
       // As respostas são preservadas com status PENDENTE para que o admin possa gerar posteriormente
@@ -183,7 +184,7 @@ app.post('/api/submissions', submissionLimiter, (req, res) => {
 // -------------------------------------------------------------
 // 2. AUTENTICAÇÃO ADMINISTRATIVA
 // -------------------------------------------------------------
-app.post('/api/admin/login', loginLimiter, (req, res) => {
+app.post('/api/admin/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -194,7 +195,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
     return;
   }
 
-  const isValid = authenticateAdminCredentials(username, password);
+  const isValid = await authenticateAdminCredentials(username, password);
 
   if (!isValid) {
     res.status(401).json({
@@ -238,7 +239,7 @@ app.post('/api/admin/logout', (req, res) => {
 });
 
 // Alteração segura de senha administrativa com validação e persistência no SQLite
-app.post('/api/admin/change-password', requireAdminAuth, (req, res) => {
+app.post('/api/admin/change-password', requireAdminAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   const username = (req as any).adminUser.username;
 
@@ -250,7 +251,7 @@ app.post('/api/admin/change-password', requireAdminAuth, (req, res) => {
     return;
   }
 
-  const result = changeAdminPassword(username, currentPassword, newPassword);
+  const result = await changeAdminPassword(username, currentPassword, newPassword);
   if (!result.success) {
     res.status(400).json({ error: 'Erro ao alterar senha', message: result.message });
     return;
@@ -271,10 +272,10 @@ app.get('/api/admin/me', requireAdminAuth, (req, res) => {
 // -------------------------------------------------------------
 
 // Listar todas as submissões com suporte a busca e filtros parametrizados
-app.get('/api/admin/submissions', requireAdminAuth, (req, res) => {
+app.get('/api/admin/submissions', requireAdminAuth, async (req, res) => {
   try {
     const { q, area, status } = req.query;
-    const submissions = SurveyService.listResponses({
+    const submissions = await SurveyService.listResponses({
       q: typeof q === 'string' ? q : undefined,
       area: typeof area === 'string' ? area : undefined,
       status: typeof status === 'string' ? status : undefined,
@@ -291,9 +292,9 @@ app.get('/api/admin/submissions', requireAdminAuth, (req, res) => {
 });
 
 // Consultar questionário individual completo
-app.get('/api/admin/submissions/:id', requireAdminAuth, (req, res) => {
+app.get('/api/admin/submissions/:id', requireAdminAuth, async (req, res) => {
   const { id } = req.params;
-  const submission = getSubmissionById(id);
+  const submission = await SurveyService.getResponseById(id);
 
   if (!submission) {
     res.status(404).json({ error: 'Submissão não encontrada' });
@@ -304,9 +305,9 @@ app.get('/api/admin/submissions/:id', requireAdminAuth, (req, res) => {
 });
 
 // Consultar relatório estratégico armazenado da submissão
-app.get('/api/admin/submissions/:id/report', requireAdminAuth, (req, res) => {
+app.get('/api/admin/submissions/:id/report', requireAdminAuth, async (req, res) => {
   const { id } = req.params;
-  const report = getReportBySubmissionId(id);
+  const report = await SurveyService.getReport(id);
 
   if (!report) {
     res.status(404).json({
@@ -320,9 +321,9 @@ app.get('/api/admin/submissions/:id/report', requireAdminAuth, (req, res) => {
 });
 
 // Gerar ou re-gerar relatório sob demanda pelo administrador
-app.post('/api/admin/submissions/:id/generate-report', requireAdminAuth, (req, res) => {
+app.post('/api/admin/submissions/:id/generate-report', requireAdminAuth, async (req, res) => {
   const { id } = req.params;
-  const submission = getSubmissionById(id);
+  const submission = await SurveyService.getResponseById(id);
 
   if (!submission) {
     res.status(404).json({ error: 'Submissão não encontrada' });
@@ -330,7 +331,7 @@ app.post('/api/admin/submissions/:id/generate-report', requireAdminAuth, (req, r
   }
 
   try {
-    const report = processAndSaveReport(id, submission.answers);
+    const report = await processAndSaveReport(id, submission.answers);
     res.json({
       success: true,
       message: 'Relatório gerado com sucesso.',
@@ -345,9 +346,9 @@ app.post('/api/admin/submissions/:id/generate-report', requireAdminAuth, (req, r
 });
 
 // Estatísticas consolidadas exclusivas do administrador
-app.get('/api/admin/stats', requireAdminAuth, (_req, res) => {
+app.get('/api/admin/stats', requireAdminAuth, async (_req, res) => {
   try {
-    const stats = SurveyService.getStats();
+    const stats = await SurveyService.getStats();
     res.json(stats);
   } catch (err) {
     console.error('Erro ao consultar estatísticas:', err);

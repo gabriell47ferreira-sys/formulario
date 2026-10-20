@@ -13,10 +13,12 @@
     "backup": "npx tsx scripts/backup.ts",
     "restore": "npx tsx scripts/restore.ts",
     "db:clear": "npx tsx scripts/clear-responses.ts",
+    "db:turso": "npx tsx scripts/init-turso.ts",
     "test": "npx tsx test-runner.js && npx tsx test-server-security.ts && npx tsx test-audit-full.ts",
     "test:audit": "npx tsx test-audit-full.ts"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^18.0.8",

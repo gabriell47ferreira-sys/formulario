@@ -125,10 +125,7 @@ export async function loginAdmin(username: string, password: string): Promise<Ad
       if (response.status === 401) {
         throw new Error(err.message || 'Credenciais inválidas. Verifique o usuário e a senha.');
       } else if (response.status === 404) {
-        if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-          throw new Error('Você está acessando pela Vercel na nuvem. Como o banco de dados é local, acesse o painel no seu computador em: http://localhost:5173/admin');
-        }
-        throw new Error('Servidor backend local não encontrado (404). Certifique-se de que o backend local está em execução (npm run dev).');
+        throw new Error('Serviço de autenticação temporariamente indisponível (404). Tente novamente em instantes.');
       } else if (response.status === 429) {
         throw new Error(err.message || 'Muitas tentativas de login. Aguarde alguns instantes antes de tentar novamente.');
       }
@@ -145,7 +142,7 @@ export async function loginAdmin(username: string, password: string): Promise<Ad
       error.message?.includes('Failed to fetch')
     ) {
       throw new Error(
-        'Não foi possível conectar ao servidor backend local. Verifique se o backend está iniciado no computador (npm run dev).'
+        'Não foi possível conectar ao servidor da 4CETY. Verifique sua conexão com a internet.'
       );
     }
     throw error;
