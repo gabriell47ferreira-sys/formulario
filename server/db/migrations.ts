@@ -121,10 +121,7 @@ export function runMigrations(db?: DatabaseSync): void {
     }
   }
 
-  // Se a tabela estiver vazia, importa dados legados do database.json ou semeia perfis de teste
-  seedInitialDataIfEmpty(database);
-
-  // Inicializa a tabela admin_users se vazia
+  // Inicialização apenas do usuário administrativo se tabela vazia (não semeia perfis falsos)
   seedAdminUserIfEmpty(database);
 }
 

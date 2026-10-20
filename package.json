@@ -12,6 +12,7 @@
     "db:migrate": "npx tsx scripts/migrate.ts",
     "backup": "npx tsx scripts/backup.ts",
     "restore": "npx tsx scripts/restore.ts",
+    "db:clear": "npx tsx scripts/clear-responses.ts",
     "test": "npx tsx test-runner.js && npx tsx test-server-security.ts && npx tsx test-audit-full.ts",
     "test:audit": "npx tsx test-audit-full.ts"
   },
