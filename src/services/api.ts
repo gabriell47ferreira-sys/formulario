@@ -125,7 +125,10 @@ export async function loginAdmin(username: string, password: string): Promise<Ad
       if (response.status === 401) {
         throw new Error(err.message || 'Credenciais inválidas. Verifique o usuário e a senha.');
       } else if (response.status === 404) {
-        throw new Error('Servidor backend não encontrado (404). Certifique-se de que o backend local está em execução.');
+        if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+          throw new Error('Você está acessando pela Vercel na nuvem. Como o banco de dados é local, acesse o painel no seu computador em: http://localhost:5173/admin');
+        }
+        throw new Error('Servidor backend local não encontrado (404). Certifique-se de que o backend local está em execução (npm run dev).');
       } else if (response.status === 429) {
         throw new Error(err.message || 'Muitas tentativas de login. Aguarde alguns instantes antes de tentar novamente.');
       }

@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import fs from 'fs';
+import path from 'path';
 import {
   getAllSubmissions,
   getSubmissionById,
@@ -496,3 +497,15 @@ app.get('/api/admin/backups', requireAdminAuth, (_req, res) => {
     res.status(500).json({ error: 'Erro ao listar backups locais' });
   }
 });
+
+// -------------------------------------------------------------
+// 6. SERVIÇO DE ARQUIVOS ESTÁTICOS DO FRONTEND (SPA FALLBACK)
+// -------------------------------------------------------------
+const distDir = path.resolve(process.cwd(), 'dist');
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+}
